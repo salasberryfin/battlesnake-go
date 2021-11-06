@@ -1,14 +1,24 @@
 package main
 
-// import "fmt"
+import "fmt"
 import "net/http"
 import "github.com/gin-gonic/gin"
 
-type httpResponse struct {
-    Body        string  `json:"body"`
+
+/////////////////////
+// BattleSnake API //
+/////////////////////
+
+// RequestPayload: /start, /move & /end
+type RequestPayload struct {
+    Game        Game        `json:"game"`
+    Turn        int32       `json:"turn"`
+    Board       Board       `json:"board"`
+    You         BattleSnake `json:"you"`
 }
 
-type battlesnakeDetails struct {
+// Details response: /
+type BattlesnakeDetails struct {
     ApiVersion  string  `json:"apiversion"`
     Author      string  `json:"author"`
     Color       string  `json:"color"`
@@ -17,87 +27,135 @@ type battlesnakeDetails struct {
     Version     string  `json:"version"`
 }
 
-// TODO: declare settings object
-type settings struct {
-    FoodSpawnChance int32   `json:"foodSpawnChance"`
-}
-
-type ruleset struct {
-    Name        string      `json:"name"`
-    Version     string      `json:"version"`
-    Settings    settings    `json:"settings"`
-}
-
-type game struct {
-    Id        string    `json:"game"`
-    Ruleset   ruleset   `json:"ruleset"`
-    Timeout   int32     `json:"timeout"`
-    Source    string    `json:"source"`
-}
-
-type pos struct {
-    X   int32
-    Y   int32
-}
-
-// TODO: declare battlesnake object
-type snake struct {
-}
-
-type board struct {
-    Heigth      int32   `json:"height"`
-    Width       int32   `json:"width"`
-    Food        []pos   `json:"food"`
-    Hazards     []pos   `json:"hazards"`
-    Snakes      []snake `json:"snakes"`
-}
-
-type move struct {
-    Game        game    `json:"game"`
-    Turn        string  `json:"turn"`
-    Board       board   `json:"board"`
-    You         snake   `json:"you"`
-}
-
-type nextMove struct {
+// Next move response: /move
+type NextMove struct {
     Move        string  `json:"move"`
     Shout       string  `json:"shout"`
 }
 
-func moveSnake(c *gin.Context) {
-    var game move
+/////////////////////////
+// BattleSnake Objects //
+/////////////////////////
 
-    if err := c.BindJSON(&game); err != nil {
-        return
+// Game Oject
+type Game struct {
+    Id        string    `json:"game"`
+    Ruleset   Ruleset   `json:"ruleset"`
+    Timeout   int32     `json:"timeout"`
+    Source    string    `json:"source"`
+}
+
+// Ruleset Object
+type Ruleset struct {
+    Name        string          `json:"name"`
+    Version     string          `json:"version"`
+    Settings    RulesetSettings `json:"settings"`
+}
+
+// RulesetSettings
+type RulesetSettings struct {
+    FoodSpawnChance         int32           `json:"foodSpawnChance"`
+    MinimumFood             int32           `json:"minimumFood"`
+    HazardDamagePerTurn     int32           `json:"hazardDamagePerTurn"`
+    RoyaleSettings          RoyaleSettings  `json:"royale"`
+    SquadSettings           SquadSettings   `json:"royale.shrinkEveryNTurns"`
+}
+
+// RoyaleSettings - this settings are specific to Royale games
+type RoyaleSettings struct {
+	ShrinkEveryNTurns int32 `json:"shrinkEveryNTurns"`
+}
+
+// SquadSettings - this settings are specific to Squad games
+type SquadSettings struct {
+	AllowBodyCollisions bool `json:"allowBodyCollisions"`
+	SharedElimination   bool `json:"sharedElimination"`
+	SharedHealth        bool `json:"sharedHealth"`
+	SharedLength        bool `json:"sharedLength"`
+}
+// BattleSnake Object
+type BattleSnake struct {
+    Id      string          `json:"id"`
+    Name    string          `json:"name"`
+    Health  int32           `json:"health"`
+    Body    []Coordinates   `json:"body"`
+    Latency string          `json:"latency"`
+    Head    Coordinates     `json:"head"`
+    Length  int32           `json:"length"`
+    Shout   string          `json:"shout"`
+    Squad   string          `json:"squad"`
+}
+
+// Board Object
+type Board struct {
+    Heigth      int32           `json:"height"`
+    Width       int32           `json:"width"`
+    Food        []Coordinates   `json:"food"`
+    Hazards     []Coordinates   `json:"hazards"`
+    Snakes      []BattleSnake   `json:"snakes"`
+}
+
+// (X, Y) position in the board
+type Coordinates struct {
+    X   int32   `json:"x"`
+    Y   int32   `json:"y"`
+}
+
+//////////////
+// GAME API //
+//////////////
+
+func parseJsonRequest(c *gin.Context) RequestPayload {
+    var request RequestPayload
+
+    if err := c.BindJSON(&request); err != nil {
+        return RequestPayload{}
     }
 
-    c.IndentedJSON(http.StatusOK, nextMove{
-        Move: "up",
-        Shout: "Moving up!",
-    })
+    return request
 }
 
+// POST /move 
+func moveSnake(c *gin.Context) {
+    //request := parseJsonRequest(c)
+
+    move := NextMove{
+        Move: "down",
+        Shout: "heeeey",
+    }
+
+    c.IndentedJSON(http.StatusOK, move)
+}
+
+// POST /start
 func startGame(c *gin.Context) {
-    c.IndentedJSON(http.StatusOK, httpResponse{
-        Body: "This is a test response",
-    })
+    // request := parseJsonRequest(c)
+
+    c.IndentedJSON(http.StatusOK,
+        "This response will be ignored anyway!",
+    )
 }
 
+// POST /end
 func endGame(c *gin.Context) {
-    c.IndentedJSON(http.StatusOK, httpResponse{
-        Body: "This is a test response",
-    })
+    // request := parseJsonRequest(c)
+
+    c.IndentedJSON(http.StatusOK,
+        "This response will be ignored anyway!",
+    )
 }
 
+// GET /
 func getSnake(c *gin.Context) {
     apiVersion := "1"
-    c.IndentedJSON(http.StatusOK, battlesnakeDetails{
-        ApiVersion: apiVersion,
-        Author:     "salasberryfin",
-        Color:      "#888888",
-        Head:       "default",
-        Tail:       "default",
-        Version:    "0.0.1-beta",
+    fmt.Println("Received request to /")
+    c.IndentedJSON(http.StatusOK, BattlesnakeDetails{
+        ApiVersion: apiVersion,         // required
+        Author:     "salasberryfin",    // optional
+        Color:      "#888888",          // optional
+        Head:       "default",          // optional
+        Tail:       "default",          // optional
+        Version:    "0.0.1-beta",       // optional
     })
 }
 
@@ -105,6 +163,7 @@ func main() {
     router := gin.Default()
 
     router.GET("/", getSnake)
+    router.POST("/start", startGame)
     router.POST("/move", moveSnake)
     router.POST("/end", endGame)
 
