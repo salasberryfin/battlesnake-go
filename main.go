@@ -172,5 +172,5 @@ func main() {
 	router.POST("/move", moveSnake)
 	router.POST("/end", endGame)
 
-	router.Run("localhost:8080")
+	router.Run("localhost:80")
 }
