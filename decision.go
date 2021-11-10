@@ -194,13 +194,14 @@ func avoidObstacles(me BattleSnake, board Board) NextMove {
 
 	var safeMoves []MoveMatrix
 	var safeMovesNoFood []MoveMatrix
+	var lastChance []MoveMatrix
 	for mvt, coords := range moves {
 		fmt.Printf("Testing move: %v\n", mvt)
 		//fmt.Printf("Current latency: %v\n", me.Latency)
 		ateFood := eatFood(coords, board.Food)
 		afterMoveBattleSnake := nextBattleSnake(me, coords, ateFood)
 		// If BattleSnake avoids walls and own body: consider the move safe
-		if avoidWall(afterMoveBattleSnake.Head, Coordinates{X: board.Width, Y: board.Width}) && avoidSnake(afterMoveBattleSnake.Head, afterMoveBattleSnake.Body) && isHealthy((afterMoveBattleSnake)) {
+		if avoidWall(afterMoveBattleSnake.Head, Coordinates{X: board.Width, Y: board.Width}) && avoidSnake(afterMoveBattleSnake.Head, afterMoveBattleSnake.Body) {
 			decision[mvt] = MoveMatrix{
 				MoveName:  mvt,
 				HitWalls:  false,
@@ -208,10 +209,15 @@ func avoidObstacles(me BattleSnake, board Board) NextMove {
 				HitSnakes: false,
 				MoveScore: checkFuture(afterMoveBattleSnake, board, moves, 10),
 			}
-			if ateFood {
-				safeMoves = append(safeMoves, decision[mvt])
+			if isHealthy((afterMoveBattleSnake)) {
+				if ateFood {
+					safeMoves = append(safeMoves, decision[mvt])
+				} else {
+					safeMovesNoFood = append(safeMovesNoFood, decision[mvt])
+				}
 			} else {
-				safeMovesNoFood = append(safeMovesNoFood, decision[mvt])
+				// BattleSnake is about to die, but we'll keep moving!
+				lastChance = append(lastChance, decision[mvt])
 			}
 		}
 	}
@@ -219,8 +225,10 @@ func avoidObstacles(me BattleSnake, board Board) NextMove {
 	var potentialMoves []MoveMatrix
 	if len(safeMovesNoFood) > 0 {
 		potentialMoves = safeMovesNoFood
-	} else {
+	} else if len(safeMoves) > 0 {
 		potentialMoves = safeMoves
+	} else {
+		potentialMoves = lastChance
 	}
 	fmt.Printf("The following moves are considered safe (%v): %v\n", len(potentialMoves), potentialMoves)
 
