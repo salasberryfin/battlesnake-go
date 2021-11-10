@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
-	"time"
 )
 
 type MoveMatrix struct {
@@ -11,6 +9,7 @@ type MoveMatrix struct {
 	HitWalls  bool
 	HitBody   bool
 	HitSnakes bool
+	MoveScore int32
 }
 
 /*
@@ -25,7 +24,7 @@ func isHealthy(me BattleSnake) bool {
 	*/
 	fmt.Printf("Next health will be: %v\n", me.Health)
 
-	return me.Health > 10
+	return me.Health > 5
 }
 
 func isAlive(me BattleSnake) bool {
@@ -59,9 +58,9 @@ func avoidSnake(newHeadPos Coordinates, myBody []Coordinates) bool {
 
 	nextBody := myBody[1:] // Do not test against own head
 	for _, square := range nextBody {
-		fmt.Printf("Evaluating against my body item (%v, %v)\n", square.X, square.Y)
+		//fmt.Printf("Evaluating against my body item (%v, %v)\n", square.X, square.Y)
 		if (newHeadPos.X == square.X) && (newHeadPos.Y == square.Y) {
-			fmt.Println("Detected collision")
+			//fmt.Println("Detected collision")
 			return false
 		}
 	}
@@ -80,7 +79,7 @@ func avoidWall(headPos Coordinates, boardSize Coordinates) bool {
 	if (headPos.X < 0) || (headPos.Y < 0) {
 		return false
 	}
-	fmt.Println("Avoid walls")
+	//fmt.Println("Avoid walls")
 
 	return true
 }
@@ -91,8 +90,9 @@ func nextBattleSnake(current BattleSnake, newHead Coordinates, ateFood bool) Bat
 	*/
 
 	// If move means eating food: increase BattleSnake length and health
+	// Else health decreases
 	newLength := current.Length
-	newHealth := current.Health
+	newHealth := current.Health - 1
 	if ateFood {
 		newLength = current.Length + 1
 		newHealth = 100
@@ -121,6 +121,29 @@ func nextBattleSnake(current BattleSnake, newHead Coordinates, ateFood bool) Bat
 	//fmt.Printf("Next BattleSnake: %v\n", nextBattleSnake)
 
 	return nextBattleSnake
+}
+
+func checkFuture(me BattleSnake, board Board, moves map[string]Coordinates, searchDepth int32) int32 {
+	/*
+		Check future possible moves
+	*/
+
+	var afterMoveBattleSnake BattleSnake
+	var nextMoveScore int32
+	for _, coords := range moves {
+		ateFood := eatFood(coords, board.Food)
+		afterMoveBattleSnake = nextBattleSnake(me, coords, ateFood)
+		// If BattleSnake avoids walls and own body: add to move score
+		if avoidWall(afterMoveBattleSnake.Head, Coordinates{X: board.Width, Y: board.Width}) && avoidSnake(afterMoveBattleSnake.Head, afterMoveBattleSnake.Body) && isHealthy((afterMoveBattleSnake)) {
+			nextMoveScore += 1
+		}
+	}
+	if searchDepth == 0 {
+		return nextMoveScore
+	} else {
+		searchDepth -= 1
+		return nextMoveScore + checkFuture(afterMoveBattleSnake, board, moves, searchDepth)
+	}
 }
 
 func avoidObstacles(me BattleSnake, board Board) NextMove {
@@ -154,7 +177,7 @@ func avoidObstacles(me BattleSnake, board Board) NextMove {
 	var safeMovesNoFood []MoveMatrix
 	for mvt, coords := range moves {
 		fmt.Printf("Testing move: %v\n", mvt)
-		fmt.Printf("Current latency: %v\n", me.Latency)
+		//fmt.Printf("Current latency: %v\n", me.Latency)
 		ateFood := eatFood(coords, board.Food)
 		afterMoveBattleSnake := nextBattleSnake(me, coords, ateFood)
 		// If BattleSnake avoids walls and own body: consider the move safe
@@ -164,6 +187,7 @@ func avoidObstacles(me BattleSnake, board Board) NextMove {
 				HitWalls:  false,
 				HitBody:   false,
 				HitSnakes: false,
+				MoveScore: checkFuture(afterMoveBattleSnake, board, moves, 10),
 			}
 			if ateFood {
 				safeMoves = append(safeMoves, decision[mvt])
@@ -181,16 +205,29 @@ func avoidObstacles(me BattleSnake, board Board) NextMove {
 	}
 	fmt.Printf("The following moves are considered safe (%v): %v\n", len(potentialMoves), potentialMoves)
 
+	bestScore := int32(-1)
+	var selectedMove MoveMatrix
+	for _, move := range potentialMoves {
+		fmt.Println(move.MoveName, " has a score of ", move.MoveScore)
+		if move.MoveScore > bestScore {
+			bestScore = int32(move.MoveScore)
+			selectedMove = move
+		}
+	}
+	fmt.Println("BattleSnake is moving ", selectedMove.MoveName, " with a score of: ", selectedMove.MoveScore)
+
 	// Select a random move from the set of "valid" moves
-	rand.Seed(time.Now().UnixNano())
+	//rand.Seed(time.Now().UnixNano())
 	if len(potentialMoves) > 0 {
-		randMove := potentialMoves[rand.Intn(len(potentialMoves))]
-		fmt.Printf("MOVE: %v\n", randMove.MoveName)
+		//randMove := potentialMoves[rand.Intn(len(potentialMoves))]
+		//fmt.Printf("MOVE: %v\n", randMove.MoveName)
+		fmt.Printf("MOVE: %v\n", selectedMove.MoveName)
 		return NextMove{
-			Move:  randMove.MoveName,
+			Move:  selectedMove.MoveName,
 			Shout: "Let's go",
 		}
 	} else {
+		fmt.Println("[CRITICAL] No moves are considered safe.")
 		return NextMove{ // If no safe moves were detected: something failed -> move up
 			Move:  "up",
 			Shout: "Failed to find a safe move: going up!",
