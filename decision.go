@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 )
 
 type MoveMatrix struct {
@@ -53,7 +54,7 @@ func eatFood(newHeadPos Coordinates, boardFood []Coordinates) bool {
 
 func avoidSnake(newHeadPos Coordinates, myBody []Coordinates) bool {
 	/*
-		Check if BattleSnake avoids own body
+		Check if BattleSnake avoids own body and other BattleSnakes
 	*/
 
 	nextBody := myBody[1:] // Do not test against own head
@@ -123,6 +124,24 @@ func nextBattleSnake(current BattleSnake, newHead Coordinates, ateFood bool) Bat
 	return nextBattleSnake
 }
 
+func pathToTail(newHead Coordinates, oldTail Coordinates) int32 {
+	/*
+		Give extra score if snake moves closer to tail.
+		Distance between two points in 2D space: sqrt((olTail.X-newHead.X)^2 + (oldTail.Y-newHead.Y)^2)
+	*/
+	distance := math.Sqrt((math.Pow(2, float64(oldTail.X-newHead.X)) + (math.Pow(2, float64(oldTail.Y-newHead.Y)))))
+	fmt.Println("Distance between head and tail: ", distance)
+	if distance < 2 {
+		return 20
+	} else if distance < 4 {
+		return 10
+	} else if distance < 6 {
+		return 6
+	} else {
+		return 0
+	}
+}
+
 func checkFuture(me BattleSnake, board Board, moves map[string]Coordinates, searchDepth int32) int32 {
 	/*
 		Check future possible moves
@@ -135,7 +154,7 @@ func checkFuture(me BattleSnake, board Board, moves map[string]Coordinates, sear
 		afterMoveBattleSnake = nextBattleSnake(me, coords, ateFood)
 		// If BattleSnake avoids walls and own body: add to move score
 		if avoidWall(afterMoveBattleSnake.Head, Coordinates{X: board.Width, Y: board.Width}) && avoidSnake(afterMoveBattleSnake.Head, afterMoveBattleSnake.Body) && isHealthy((afterMoveBattleSnake)) {
-			nextMoveScore += 1
+			nextMoveScore += 1 + pathToTail(afterMoveBattleSnake.Head, me.Body[len(me.Body)-1])
 		}
 	}
 	if searchDepth == 0 {
