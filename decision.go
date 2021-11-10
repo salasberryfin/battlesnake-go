@@ -52,7 +52,18 @@ func eatFood(newHeadPos Coordinates, boardFood []Coordinates) bool {
 	return false
 }
 
-func avoidSnake(newHeadPos Coordinates, myBody []Coordinates) bool {
+func avoidOpponentBattleSnakes(newHeadPos Coordinates, otherSnakes []BattleSnake) bool {
+	for _, snake := range otherSnakes {
+		for _, part := range snake.Body {
+			if (newHeadPos.X == part.X) && (newHeadPos.Y == part.Y) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func avoidOwn(newHeadPos Coordinates, myBody []Coordinates) bool {
 	/*
 		Check if BattleSnake avoids own body and other BattleSnakes
 	*/
@@ -153,7 +164,7 @@ func checkFuture(me BattleSnake, board Board, moves map[string]Coordinates, sear
 		ateFood := eatFood(coords, board.Food)
 		afterMoveBattleSnake = nextBattleSnake(me, coords, ateFood)
 		// If BattleSnake avoids walls and own body: add to move score
-		if avoidWall(afterMoveBattleSnake.Head, Coordinates{X: board.Width, Y: board.Width}) && avoidSnake(afterMoveBattleSnake.Head, afterMoveBattleSnake.Body) && isHealthy((afterMoveBattleSnake)) {
+		if avoidWall(afterMoveBattleSnake.Head, Coordinates{X: board.Width, Y: board.Width}) && avoidOwn(afterMoveBattleSnake.Head, afterMoveBattleSnake.Body) && isHealthy((afterMoveBattleSnake)) {
 			nextMoveScore += 1 + pathToTail(afterMoveBattleSnake.Head, me.Body[len(me.Body)-1])
 		}
 	}
@@ -201,7 +212,7 @@ func avoidObstacles(me BattleSnake, board Board) NextMove {
 		ateFood := eatFood(coords, board.Food)
 		afterMoveBattleSnake := nextBattleSnake(me, coords, ateFood)
 		// If BattleSnake avoids walls and own body: consider the move safe
-		if avoidWall(afterMoveBattleSnake.Head, Coordinates{X: board.Width, Y: board.Width}) && avoidSnake(afterMoveBattleSnake.Head, afterMoveBattleSnake.Body) {
+		if avoidWall(afterMoveBattleSnake.Head, Coordinates{X: board.Width, Y: board.Width}) && avoidOwn(afterMoveBattleSnake.Head, afterMoveBattleSnake.Body) && avoidOpponentBattleSnakes(afterMoveBattleSnake.Head, board.Snakes) {
 			decision[mvt] = MoveMatrix{
 				MoveName:  mvt,
 				HitWalls:  false,
