@@ -64,7 +64,7 @@ func isHealthy(me BattleSnake, food []Coordinates) bool {
 	fmt.Printf("Next health will be: %v\n", me.Health)
 	closest := closestItem(me.Head, food)
 
-	return me.Health > distanceTo(me.Head, closest)+1
+	return me.Health > distanceTo(me.Head, closest)+5
 }
 
 func isAlive(me BattleSnake) bool {
@@ -187,7 +187,7 @@ func checkFuture(me BattleSnake, board Board, moves map[string]Coordinates, sear
 			if isHealthy(afterMoveBattleSnake, board.Food) {
 				nextMoveScore += 1 + pathTo(afterMoveBattleSnake.Head, me.Body[len(me.Body)-1]) // + score based on path to tail
 			} else {
-				nextMoveScore += 1 + pathTo(afterMoveBattleSnake.Head, closestItem(afterMoveBattleSnake.Head, board.Food)) // + score based on path to tail
+				nextMoveScore += 1 + pathTo(afterMoveBattleSnake.Head, closestItem(afterMoveBattleSnake.Head, board.Food)) // + score based on path to closest food
 			}
 		}
 	}
