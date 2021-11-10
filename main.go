@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	//"encoding/json"
@@ -172,5 +173,9 @@ func main() {
 	router.POST("/move", moveSnake)
 	router.POST("/end", endGame)
 
-	router.Run(":8080")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "3000"
+	}
+	router.Run(":", port)
 }
