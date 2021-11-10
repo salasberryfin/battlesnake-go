@@ -15,8 +15,7 @@ type MoveMatrix struct {
 
 /*
 TODO:
-- Calculate distance to closest food to avoid health issues
-- Path to `something`: generic
+- If !isHealth -> go for closest food
 */
 
 func distanceTo(head Coordinates, target Coordinates) int32 {
@@ -185,11 +184,12 @@ func checkFuture(me BattleSnake, board Board, moves map[string]Coordinates, sear
 		afterMoveBattleSnake = nextBattleSnake(me, coords, ateFood)
 		// If BattleSnake avoids walls and own body: add to move score
 		if avoidWall(afterMoveBattleSnake.Head, Coordinates{X: board.Width, Y: board.Width}) && avoidOwn(afterMoveBattleSnake.Head, afterMoveBattleSnake.Body) {
-			if isHealthy(afterMoveBattleSnake, board.Food) {
-				nextMoveScore += 1 + pathTo(afterMoveBattleSnake.Head, me.Body[len(me.Body)-1]) // + score based on path to tail
-			} else {
-				nextMoveScore += 1 + pathTo(afterMoveBattleSnake.Head, closestItem(afterMoveBattleSnake.Head, board.Food)) // + score based on path to closest food
-			}
+			//if isHealthy(afterMoveBattleSnake, board.Food) {
+			//	nextMoveScore += 1 + pathTo(afterMoveBattleSnake.Head, me.Body[len(me.Body)-1]) // + score based on path to tail
+			//} else {
+			//	nextMoveScore += 1 + pathTo(afterMoveBattleSnake.Head, closestItem(afterMoveBattleSnake.Head, board.Food)) // + score based on path to closest food
+			//}
+			nextMoveScore += 1 + pathTo(afterMoveBattleSnake.Head, me.Body[len(me.Body)-1]) // + score based on path to tail
 		}
 	}
 	if searchDepth == 0 {
@@ -245,6 +245,9 @@ func avoidObstacles(me BattleSnake, board Board) NextMove {
 				MoveScore: checkFuture(afterMoveBattleSnake, board, moves, 10),
 			}
 			potentialMoves = append(potentialMoves, decision[mvt])
+			if !isHealthy(afterMoveBattleSnake, board.Food) {
+
+			}
 			//if ateFood {
 			//	safeMoves = append(safeMoves, decision[mvt])
 			//} else {
