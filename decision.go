@@ -22,18 +22,17 @@ TODO:
 func distanceTo(head Coordinates, target Coordinates) int32 {
 	/*
 		Calculate distance between my head and object in board
+		Distance between two points in 2D space: sqrt((olTail.X-newHead.X)^2 + (oldTail.Y-newHead.Y)^2)
 	*/
 
 	return int32(math.Sqrt((math.Pow(2, float64(head.X-target.X)) + (math.Pow(2, float64(head.Y-target.Y))))))
 }
 
-func pathToTail(newHead Coordinates, oldTail Coordinates) int32 {
+func pathTo(head Coordinates, target Coordinates) int32 {
 	/*
-		Give extra score if snake moves closer to tail.
-		Distance between two points in 2D space: sqrt((olTail.X-newHead.X)^2 + (oldTail.Y-newHead.Y)^2)
+		Give extra score if snake moves closer to target.
 	*/
-	distance := math.Sqrt((math.Pow(2, float64(oldTail.X-newHead.X)) + (math.Pow(2, float64(oldTail.Y-newHead.Y)))))
-	fmt.Println("Distance between head and tail: ", distance)
+	distance := distanceTo(head, target)
 	if distance < 2 {
 		return 20
 	} else if distance < 4 {
@@ -45,20 +44,27 @@ func pathToTail(newHead Coordinates, oldTail Coordinates) int32 {
 	}
 }
 
+func closestItem(head Coordinates, target []Coordinates) Coordinates {
+	closest := int32(999)
+	var coords Coordinates
+	for _, fuel := range target {
+		dist := distanceTo(head, fuel)
+		if dist < closest {
+			closest, coords = dist, fuel
+		}
+	}
+
+	return coords
+}
+
 func isHealthy(me BattleSnake, food []Coordinates) bool {
 	/*
 		Check if BattleSnake's Health > `int` after given move
 	*/
 	fmt.Printf("Next health will be: %v\n", me.Health)
-	closest := int32(999)
-	for _, fuel := range food {
-		dist := distanceTo(me.Head, fuel)
-		if dist < closest {
-			closest = dist
-		}
-	}
+	closest := closestItem(me.Head, food)
 
-	return me.Health > closest+1
+	return me.Health > distanceTo(me.Head, closest)+1
 }
 
 func isAlive(me BattleSnake) bool {
@@ -103,9 +109,7 @@ func avoidOwn(newHeadPos Coordinates, myBody []Coordinates) bool {
 
 	nextBody := myBody[1:] // Do not test against own head
 	for _, square := range nextBody {
-		//fmt.Printf("Evaluating against my body item (%v, %v)\n", square.X, square.Y)
 		if (newHeadPos.X == square.X) && (newHeadPos.Y == square.Y) {
-			//fmt.Println("Detected collision")
 			return false
 		}
 	}
@@ -179,8 +183,12 @@ func checkFuture(me BattleSnake, board Board, moves map[string]Coordinates, sear
 		ateFood := eatFood(coords, board.Food)
 		afterMoveBattleSnake = nextBattleSnake(me, coords, ateFood)
 		// If BattleSnake avoids walls and own body: add to move score
-		if avoidWall(afterMoveBattleSnake.Head, Coordinates{X: board.Width, Y: board.Width}) && avoidOwn(afterMoveBattleSnake.Head, afterMoveBattleSnake.Body) && isHealthy(afterMoveBattleSnake, board.Food) {
-			nextMoveScore += 1 + pathToTail(afterMoveBattleSnake.Head, me.Body[len(me.Body)-1]) // + score based on path to tail
+		if avoidWall(afterMoveBattleSnake.Head, Coordinates{X: board.Width, Y: board.Width}) && avoidOwn(afterMoveBattleSnake.Head, afterMoveBattleSnake.Body) {
+			if isHealthy(afterMoveBattleSnake, board.Food) {
+				nextMoveScore += 1 + pathTo(afterMoveBattleSnake.Head, me.Body[len(me.Body)-1]) // + score based on path to tail
+			} else {
+				nextMoveScore += 1 + pathTo(afterMoveBattleSnake.Head, closestItem(afterMoveBattleSnake.Head, board.Food)) // + score based on path to tail
+			}
 		}
 	}
 	if searchDepth == 0 {
