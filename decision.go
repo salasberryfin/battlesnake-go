@@ -16,16 +16,49 @@ type MoveMatrix struct {
 /*
 TODO:
 - Calculate distance to closest food to avoid health issues
-- Check multiple turns before deciding which one to choose
+- Path to `something`: generic
 */
 
-func isHealthy(me BattleSnake) bool {
+func distanceTo(head Coordinates, target Coordinates) int32 {
+	/*
+		Calculate distance between my head and object in board
+	*/
+
+	return int32(math.Sqrt((math.Pow(2, float64(head.X-target.X)) + (math.Pow(2, float64(head.Y-target.Y))))))
+}
+
+func pathToTail(newHead Coordinates, oldTail Coordinates) int32 {
+	/*
+		Give extra score if snake moves closer to tail.
+		Distance between two points in 2D space: sqrt((olTail.X-newHead.X)^2 + (oldTail.Y-newHead.Y)^2)
+	*/
+	distance := math.Sqrt((math.Pow(2, float64(oldTail.X-newHead.X)) + (math.Pow(2, float64(oldTail.Y-newHead.Y)))))
+	fmt.Println("Distance between head and tail: ", distance)
+	if distance < 2 {
+		return 20
+	} else if distance < 4 {
+		return 10
+	} else if distance < 6 {
+		return 6
+	} else {
+		return 0
+	}
+}
+
+func isHealthy(me BattleSnake, food []Coordinates) bool {
 	/*
 		Check if BattleSnake's Health > `int` after given move
 	*/
 	fmt.Printf("Next health will be: %v\n", me.Health)
+	closest := int32(999)
+	for _, fuel := range food {
+		dist := distanceTo(me.Head, fuel)
+		if dist < closest {
+			closest = dist
+		}
+	}
 
-	return me.Health > 5
+	return me.Health > closest+1
 }
 
 func isAlive(me BattleSnake) bool {
@@ -135,24 +168,6 @@ func nextBattleSnake(current BattleSnake, newHead Coordinates, ateFood bool) Bat
 	return nextBattleSnake
 }
 
-func pathToTail(newHead Coordinates, oldTail Coordinates) int32 {
-	/*
-		Give extra score if snake moves closer to tail.
-		Distance between two points in 2D space: sqrt((olTail.X-newHead.X)^2 + (oldTail.Y-newHead.Y)^2)
-	*/
-	distance := math.Sqrt((math.Pow(2, float64(oldTail.X-newHead.X)) + (math.Pow(2, float64(oldTail.Y-newHead.Y)))))
-	fmt.Println("Distance between head and tail: ", distance)
-	if distance < 2 {
-		return 20
-	} else if distance < 4 {
-		return 10
-	} else if distance < 6 {
-		return 6
-	} else {
-		return 0
-	}
-}
-
 func checkFuture(me BattleSnake, board Board, moves map[string]Coordinates, searchDepth int32) int32 {
 	/*
 		Check future possible moves
@@ -164,8 +179,8 @@ func checkFuture(me BattleSnake, board Board, moves map[string]Coordinates, sear
 		ateFood := eatFood(coords, board.Food)
 		afterMoveBattleSnake = nextBattleSnake(me, coords, ateFood)
 		// If BattleSnake avoids walls and own body: add to move score
-		if avoidWall(afterMoveBattleSnake.Head, Coordinates{X: board.Width, Y: board.Width}) && avoidOwn(afterMoveBattleSnake.Head, afterMoveBattleSnake.Body) && isHealthy((afterMoveBattleSnake)) {
-			nextMoveScore += 1 + pathToTail(afterMoveBattleSnake.Head, me.Body[len(me.Body)-1])
+		if avoidWall(afterMoveBattleSnake.Head, Coordinates{X: board.Width, Y: board.Width}) && avoidOwn(afterMoveBattleSnake.Head, afterMoveBattleSnake.Body) && isHealthy(afterMoveBattleSnake, board.Food) {
+			nextMoveScore += 1 + pathToTail(afterMoveBattleSnake.Head, me.Body[len(me.Body)-1]) // + score based on path to tail
 		}
 	}
 	if searchDepth == 0 {
@@ -208,7 +223,6 @@ func avoidObstacles(me BattleSnake, board Board) NextMove {
 	var lastChance []MoveMatrix
 	for mvt, coords := range moves {
 		fmt.Printf("Testing move: %v\n", mvt)
-		//fmt.Printf("Current latency: %v\n", me.Latency)
 		ateFood := eatFood(coords, board.Food)
 		afterMoveBattleSnake := nextBattleSnake(me, coords, ateFood)
 		// If BattleSnake avoids walls and own body: consider the move safe
@@ -220,7 +234,7 @@ func avoidObstacles(me BattleSnake, board Board) NextMove {
 				HitSnakes: false,
 				MoveScore: checkFuture(afterMoveBattleSnake, board, moves, 10),
 			}
-			if isHealthy((afterMoveBattleSnake)) {
+			if isHealthy(afterMoveBattleSnake, board.Food) {
 				if ateFood {
 					safeMoves = append(safeMoves, decision[mvt])
 				} else {
