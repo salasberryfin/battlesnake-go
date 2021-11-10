@@ -177,5 +177,5 @@ func main() {
 	if port == "" {
 		port = "3000"
 	}
-	router.Run(":", port)
+	router.Run(":" + port)
 }
