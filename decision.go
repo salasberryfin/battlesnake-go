@@ -316,7 +316,7 @@ func checkMoves(me BattleSnake, board Board) NextMove {
 					Decision{
 						Move: NextMove{Move: move, Shout: "yuhu"},
 						//ToTail:      distanceTo(newMe.Head, newMe.Body[len(newMe.Body)-1]),
-						FutureScore: alive_score,
+						FutureScore: int32(alive_score / (distanceTo(newMe.Head, newMe.Body[len(newMe.Body)-1]) + 1)),
 					})
 			} else {
 				fmt.Println("First checking closest food item.")
@@ -324,8 +324,7 @@ func checkMoves(me BattleSnake, board Board) NextMove {
 					Decision{
 						Move: NextMove{Move: move, Shout: "yuhu"},
 						//ToFood:      distanceTo(newMe.Head, closestItem(newMe.Head, board.Food)),
-						FutureScore: alive_score,
-						//FutureScore: int32(alive_score / (distanceTo(newMe.Head, closestItem(newMe.Head, board.Food)) + 1)),
+						FutureScore: int32(alive_score / (distanceTo(newMe.Head, closestItem(newMe.Head, board.Food)) + 1)),
 					})
 			}
 		} else {
