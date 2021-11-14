@@ -310,7 +310,7 @@ func checkMoves(me BattleSnake, board Board) NextMove {
 		newMe, _ := nextTurn(me, firstHeadPosition, eatFood(firstHeadPosition, board.Food), board)
 		moveSituation := getMoveDetails(newMe, board)
 		if moveSituation.Alive {
-			alive_score := whatNext(newMe, board, 5)
+			alive_score := whatNext(newMe, board, 2)
 			if moveSituation.Healthy {
 				safeMoves["healthy"] = append(safeMoves["healthy"],
 					Decision{
