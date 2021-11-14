@@ -309,22 +309,23 @@ func checkMoves(me BattleSnake, board Board) NextMove {
 		firstHeadPosition := nextCoords(me.Head, move)
 		newMe, _ := nextTurn(me, firstHeadPosition, eatFood(firstHeadPosition, board.Food), board)
 		moveSituation := getMoveDetails(newMe, board)
-		alive_score := whatNext(newMe, board, 5)
 		if moveSituation.Alive {
+			alive_score := whatNext(newMe, board, 5)
 			if moveSituation.Healthy {
 				safeMoves["healthy"] = append(safeMoves["healthy"],
 					Decision{
-						Move:        NextMove{Move: move, Shout: "yuhu"},
-						ToTail:      distanceTo(newMe.Head, newMe.Body[len(newMe.Body)-1]),
+						Move: NextMove{Move: move, Shout: "yuhu"},
+						//ToTail:      distanceTo(newMe.Head, newMe.Body[len(newMe.Body)-1]),
 						FutureScore: alive_score,
 					})
 			} else {
 				fmt.Println("First checking closest food item.")
 				safeMoves["unhealthy"] = append(safeMoves["unhealthy"],
 					Decision{
-						Move:        NextMove{Move: move, Shout: "yuhu"},
-						ToFood:      distanceTo(newMe.Head, closestItem(newMe.Head, board.Food)),
+						Move: NextMove{Move: move, Shout: "yuhu"},
+						//ToFood:      distanceTo(newMe.Head, closestItem(newMe.Head, board.Food)),
 						FutureScore: alive_score,
+						//FutureScore: int32(alive_score / (distanceTo(newMe.Head, closestItem(newMe.Head, board.Food)) + 1)),
 					})
 			}
 		} else {
