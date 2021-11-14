@@ -65,7 +65,7 @@ func isHealthy(me BattleSnake, food []Coordinates) bool {
 	*/
 	closest := closestItem(me.Head, food)
 
-	return me.Health > distanceTo(me.Head, closest)+1
+	return me.Health > distanceTo(me.Head, closest)+5
 }
 
 func isDead(me BattleSnake, battleSnakes []BattleSnake, boardSize Coordinates) bool {
@@ -310,20 +310,20 @@ func checkMoves(me BattleSnake, board Board) NextMove {
 		newMe, _ := nextTurn(me, firstHeadPosition, eatFood(firstHeadPosition, board.Food), board)
 		moveSituation := getMoveDetails(newMe, board)
 		if moveSituation.Alive {
-			alive_score := whatNext(newMe, board, 2)
+			alive_score := whatNext(newMe, board, 0)
 			if moveSituation.Healthy {
 				safeMoves["healthy"] = append(safeMoves["healthy"],
 					Decision{
-						Move: NextMove{Move: move, Shout: "yuhu"},
-						//ToTail:      distanceTo(newMe.Head, newMe.Body[len(newMe.Body)-1]),
+						Move:        NextMove{Move: move, Shout: "yuhu"},
+						ToTail:      distanceTo(newMe.Head, newMe.Body[len(newMe.Body)-1]),
 						FutureScore: int32(alive_score / (distanceTo(newMe.Head, newMe.Body[len(newMe.Body)-1]) + 1)),
 					})
 			} else {
 				fmt.Println("First checking closest food item.")
 				safeMoves["unhealthy"] = append(safeMoves["unhealthy"],
 					Decision{
-						Move: NextMove{Move: move, Shout: "yuhu"},
-						//ToFood:      distanceTo(newMe.Head, closestItem(newMe.Head, board.Food)),
+						Move:        NextMove{Move: move, Shout: "yuhu"},
+						ToFood:      distanceTo(newMe.Head, closestItem(newMe.Head, board.Food)),
 						FutureScore: int32(alive_score / (distanceTo(newMe.Head, closestItem(newMe.Head, board.Food)) + 1)),
 					})
 			}
@@ -335,38 +335,37 @@ func checkMoves(me BattleSnake, board Board) NextMove {
 	var selectedMove NextMove
 	if len(safeMoves["healthy"]) > 0 {
 		fmt.Println("Should go tail chasing")
-		//closest_to_tail := int32(999)
-		//for _, next := range safeMoves["healthy"] {
-		//	if next.ToTail < closest_to_tail {
-		//		closest_to_tail = next.ToTail
-		//		selectedMove = next.Move
-		//	}
-		//}
-		highest_score := int32(0)
+		closest_to_tail := int32(999)
 		for _, next := range safeMoves["healthy"] {
-			if next.FutureScore > highest_score {
-				highest_score = next.FutureScore
+			if next.ToTail < closest_to_tail {
+				closest_to_tail = next.ToTail
 				selectedMove = next.Move
 			}
 		}
+		//highest_score := int32(0)
+		//for _, next := range safeMoves["healthy"] {
+		//	if next.FutureScore > highest_score {
+		//		highest_score = next.FutureScore
+		//		selectedMove = next.Move
+		//	}
+		//}
 	} else if len(safeMoves["unhealthy"]) > 0 {
 		fmt.Println("Should go for food")
-		//closest_to_food := int32(999)
-		//for _, next := range safeMoves["unhealthy"] {
-		//	if next.ToFood < closest_to_food {
-		//		closest_to_food = next.ToFood
-		//		selectedMove = next.Move
-		//	}
-		//}
-		highest_score := int32(0)
+		closest_to_food := int32(999)
 		for _, next := range safeMoves["unhealthy"] {
-			if next.FutureScore < highest_score {
-				highest_score = next.FutureScore
+			if next.ToFood < closest_to_food {
+				closest_to_food = next.ToFood
 				selectedMove = next.Move
 			}
 		}
+		//highest_score := int32(0)
+		//for _, next := range safeMoves["unhealthy"] {
+		//	if next.FutureScore < highest_score {
+		//		highest_score = next.FutureScore
+		//		selectedMove = next.Move
+		//	}
+		//}
 	} else {
-
 		fmt.Println("I'm dead")
 		selectedMove = NextMove{Move: "up", Shout: "failed"}
 	}
