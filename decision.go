@@ -271,7 +271,7 @@ func whatNext(me BattleSnake, board Board, searchDepth int32) int32 {
 		moveSituation := getMoveDetails(newMe, board)
 		// If I'm alive: += 1*searchDepth
 		if moveSituation.Alive {
-			score += 1 * searchDepth
+			score += 1 * 2 * searchDepth
 		}
 
 		if searchDepth > 0 {
@@ -310,7 +310,7 @@ func checkMoves(me BattleSnake, board Board) NextMove {
 		newMe, _ := nextTurn(me, firstHeadPosition, eatFood(firstHeadPosition, board.Food), board)
 		moveSituation := getMoveDetails(newMe, board)
 		if moveSituation.Alive {
-			alive_score := whatNext(newMe, board, 0)
+			alive_score := whatNext(newMe, board, 5)
 			if moveSituation.Healthy {
 				safeMoves["healthy"] = append(safeMoves["healthy"],
 					Decision{
@@ -351,20 +351,20 @@ func checkMoves(me BattleSnake, board Board) NextMove {
 		//}
 	} else if len(safeMoves["unhealthy"]) > 0 {
 		fmt.Println("Should go for food")
-		closest_to_food := int32(999)
-		for _, next := range safeMoves["unhealthy"] {
-			if next.ToFood < closest_to_food {
-				closest_to_food = next.ToFood
-				selectedMove = next.Move
-			}
-		}
-		//highest_score := int32(0)
+		//closest_to_food := int32(999)
 		//for _, next := range safeMoves["unhealthy"] {
-		//	if next.FutureScore < highest_score {
-		//		highest_score = next.FutureScore
+		//	if next.ToFood < closest_to_food {
+		//		closest_to_food = next.ToFood
 		//		selectedMove = next.Move
 		//	}
 		//}
+		highest_score := int32(0)
+		for _, next := range safeMoves["unhealthy"] {
+			if next.FutureScore < highest_score {
+				highest_score = next.FutureScore
+				selectedMove = next.Move
+			}
+		}
 	} else {
 		fmt.Println("I'm dead")
 		selectedMove = NextMove{Move: "up", Shout: "failed"}
