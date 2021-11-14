@@ -5,23 +5,32 @@ import (
 	"math"
 )
 
-type MoveMatrix struct {
-	MoveName  string
-	HitWalls  bool
-	HitBody   bool
-	HitSnakes bool
-	MoveScore int32
-}
-
 /*
 TODO:
-- If !isHealth -> go for closest food
+	1. MoveScore struct
+	2. Check Walls/Own/Snakes
+	3. Multiply by layers to go full depth: closer turns have higher value
+	4. Find path to follow tail
+	5. If healthy && follow tail avoids obstacles -> follow tail
+	6. If healthy && follow tail !safe -> move with highest score
+	7. If !healthy -> find path to closest food
 */
+
+type Decision struct {
+	Move   NextMove
+	ToFood int32
+	ToTail int32
+}
+
+type MoveDetails struct {
+	Alive   bool
+	Healthy bool
+}
 
 func distanceTo(head Coordinates, target Coordinates) int32 {
 	/*
 		Calculate distance between my head and object in board
-		Distance between two points in 2D space: sqrt((olTail.X-newHead.X)^2 + (oldTail.Y-newHead.Y)^2)
+		Distance between two points in 2D space: sqrt((target.X-newHead.X)^2 + (target.Y-newHead.Y)^2)
 	*/
 
 	return int32(math.Sqrt((math.Pow(2, float64(target.X-head.X)) + (math.Pow(2, float64(target.Y-head.Y))))))
@@ -32,15 +41,8 @@ func pathTo(head Coordinates, target Coordinates) int32 {
 		Give extra score if snake moves closer to target.
 	*/
 	distance := distanceTo(head, target)
-	if distance < 2 {
-		return 20
-	} else if distance < 4 {
-		return 10
-	} else if distance < 6 {
-		return 6
-	} else {
-		return 0
-	}
+
+	return distance
 }
 
 func closestItem(head Coordinates, target []Coordinates) Coordinates {
@@ -52,7 +54,6 @@ func closestItem(head Coordinates, target []Coordinates) Coordinates {
 			closest, coords = dist, fuel
 		}
 	}
-	fmt.Println("Closest food is ", coords)
 
 	return coords
 }
@@ -61,19 +62,21 @@ func isHealthy(me BattleSnake, food []Coordinates) bool {
 	/*
 		Check if BattleSnake's Health > `int` after given move
 	*/
-	//fmt.Printf("Next health will be: %v\n", me.Health)
 	closest := closestItem(me.Head, food)
 
 	return me.Health > distanceTo(me.Head, closest)+5
 }
 
-func isAlive(me BattleSnake) bool {
+func isDead(me BattleSnake, battleSnakes []BattleSnake, boardSize Coordinates) bool {
 	/*
-		Check if BattleSnake's Health > 0 after given move
+		Check if BattleSnake's Health < 0 after given move
 	*/
-	//fmt.Printf("Next health will be: %v\n", me.Health)
+	fmt.Println("Did I starve?: ", me.Health < 0)
+	fmt.Println("I'm colliding with snakes: ", !avoidBattleSnakes(me.Head, battleSnakes))
+	fmt.Println("I'm colliding with walls: ", !avoidBoardLimits(me.Head, boardSize))
+	fmt.Println("Dead evaluation: ", (me.Health < 0) || (!avoidBattleSnakes(me.Head, battleSnakes)) || (!avoidBoardLimits(me.Head, boardSize)))
 
-	return me.Health > 0
+	return (me.Health < 0) || (!avoidBattleSnakes(me.Head, battleSnakes)) || (!avoidBoardLimits(me.Head, boardSize))
 }
 
 func eatFood(newHeadPos Coordinates, boardFood []Coordinates) bool {
@@ -83,7 +86,6 @@ func eatFood(newHeadPos Coordinates, boardFood []Coordinates) bool {
 
 	for _, food := range boardFood {
 		if (newHeadPos.X == food.X) && (newHeadPos.Y == food.Y) {
-			//fmt.Printf("Eat food in (%v, %v)\n", newHeadPos.X, newHeadPos.Y)
 			return true
 		}
 	}
@@ -91,8 +93,8 @@ func eatFood(newHeadPos Coordinates, boardFood []Coordinates) bool {
 	return false
 }
 
-func avoidOpponentBattleSnakes(newHeadPos Coordinates, otherSnakes []BattleSnake) bool {
-	for _, snake := range otherSnakes {
+func avoidBattleSnakes(newHeadPos Coordinates, battleSnakes []BattleSnake) bool {
+	for _, snake := range battleSnakes {
 		for _, part := range snake.Body {
 			if (newHeadPos.X == part.X) && (newHeadPos.Y == part.Y) {
 				return false
@@ -102,22 +104,7 @@ func avoidOpponentBattleSnakes(newHeadPos Coordinates, otherSnakes []BattleSnake
 	return true
 }
 
-func avoidOwn(newHeadPos Coordinates, myBody []Coordinates) bool {
-	/*
-		Check if BattleSnake avoids own body and other BattleSnakes
-	*/
-
-	nextBody := myBody[1:] // Do not test against own head
-	for _, square := range nextBody {
-		if (newHeadPos.X == square.X) && (newHeadPos.Y == square.Y) {
-			return false
-		}
-	}
-
-	return true
-}
-
-func avoidWall(headPos Coordinates, boardSize Coordinates) bool {
+func avoidBoardLimits(headPos Coordinates, boardSize Coordinates) bool {
 	/*
 		Check if BattleSnake avoids walls
 	*/
@@ -128,179 +115,249 @@ func avoidWall(headPos Coordinates, boardSize Coordinates) bool {
 	if (headPos.X < 0) || (headPos.Y < 0) {
 		return false
 	}
-	//fmt.Println("Avoid walls")
 
 	return true
 }
 
-func nextBattleSnake(current BattleSnake, newHead Coordinates, ateFood bool) BattleSnake {
+func nextTurn(snake BattleSnake, newHead Coordinates, ateFood bool, board Board) (BattleSnake, Board) {
 	/*
-		Generate properties of my BattleSnake for given move
+		Generate properties of my BattleSnake and resulting board for given move
 	*/
 
 	// If move means eating food: increase BattleSnake length and health
 	// Else health decreases
-	newLength := current.Length
-	newHealth := current.Health - 1
+	newLength := snake.Length
+	newHealth := snake.Health - 1
+	newFood := board.Food
 	if ateFood {
-		newLength = current.Length + 1
+		newLength = snake.Length + 1
 		newHealth = 100
+		for index, item := range board.Food {
+			// If ateFood, remove the food item from the board
+			if (item.X == newHead.X) && (item.Y == newHead.Y) {
+				newFood = append(board.Food[:index], board.Food[index+1:]...)
+				break
+			}
+		}
 	}
 
 	// BattleSnake body coordinates after the move
 	newBody := []Coordinates{
 		newHead,
 	}
-	movedBody := current.Body[:len(current.Body)-1]
+	movedBody := snake.Body[:len(snake.Body)-1]
 	newBody = append(newBody, movedBody...)
 
 	// Update Body, head and length accordingly
 	nextBattleSnake := BattleSnake{
-		Id:      current.Id,
-		Name:    current.Name,
+		Id:      snake.Id,
+		Name:    snake.Name,
 		Health:  newHealth,
 		Body:    newBody,
-		Latency: current.Latency,
+		Latency: snake.Latency,
 		Head:    newHead,
 		Length:  newLength,
-		Shout:   current.Shout,
-		Squad:   current.Squad,
-	}
-	//fmt.Printf("Current BattleSnake: %v\n", current)
-	//fmt.Printf("Next BattleSnake: %v\n", nextBattleSnake)
-
-	return nextBattleSnake
-}
-
-func checkFuture(me BattleSnake, board Board, moves map[string]Coordinates, searchDepth int32) int32 {
-	/*
-		Check future possible moves
-	*/
-
-	var afterMoveBattleSnake BattleSnake
-	var nextMoveScore int32
-	for _, coords := range moves {
-		ateFood := eatFood(coords, board.Food)
-		afterMoveBattleSnake = nextBattleSnake(me, coords, ateFood)
-		// If BattleSnake avoids walls and own body: add to move score
-		if avoidWall(afterMoveBattleSnake.Head, Coordinates{X: board.Width, Y: board.Width}) && avoidOwn(afterMoveBattleSnake.Head, afterMoveBattleSnake.Body) {
-			//if isHealthy(afterMoveBattleSnake, board.Food) {
-			//	nextMoveScore += 1 + pathTo(afterMoveBattleSnake.Head, me.Body[len(me.Body)-1]) // + score based on path to tail
-			//} else {
-			//	nextMoveScore += 1 + pathTo(afterMoveBattleSnake.Head, closestItem(afterMoveBattleSnake.Head, board.Food)) // + score based on path to closest food
-			//}
-			nextMoveScore += 1 + pathTo(afterMoveBattleSnake.Head, me.Body[len(me.Body)-1]) // + score based on path to tail
-		}
-	}
-	if searchDepth == 0 {
-		return nextMoveScore
-	} else {
-		searchDepth -= 1
-		return nextMoveScore + checkFuture(afterMoveBattleSnake, board, moves, searchDepth)
-	}
-}
-
-func avoidObstacles(me BattleSnake, board Board) NextMove {
-	/*
-		Main decision making function.
-	*/
-
-	// Basic decision matrix
-	decision := make(map[string]MoveMatrix)
-
-	// Next Moves and Coordinates
-	moves := make(map[string]Coordinates)
-	moves["up"] = Coordinates{
-		X: me.Head.X,
-		Y: me.Head.Y + 1,
-	}
-	moves["down"] = Coordinates{
-		X: me.Head.X,
-		Y: me.Head.Y - 1,
-	}
-	moves["left"] = Coordinates{
-		X: me.Head.X - 1,
-		Y: me.Head.Y,
-	}
-	moves["right"] = Coordinates{
-		X: me.Head.X + 1,
-		Y: me.Head.Y,
+		Shout:   snake.Shout,
+		Squad:   snake.Squad,
 	}
 
-	//var safeMoves []MoveMatrix
-	//var safeMovesNoFood []MoveMatrix
-	//var lastChance []MoveMatrix
-	var potentialMoves []MoveMatrix
-	for mvt, coords := range moves {
-		//fmt.Printf("Testing move: %v\n", mvt)
-		ateFood := eatFood(coords, board.Food)
-		afterMoveBattleSnake := nextBattleSnake(me, coords, ateFood)
-		// If BattleSnake avoids walls and own body: consider the move safe
-		if avoidWall(afterMoveBattleSnake.Head, Coordinates{X: board.Width, Y: board.Width}) && avoidOwn(afterMoveBattleSnake.Head, afterMoveBattleSnake.Body) && avoidOpponentBattleSnakes(afterMoveBattleSnake.Head, board.Snakes) {
-			decision[mvt] = MoveMatrix{
-				MoveName:  mvt,
-				HitWalls:  false,
-				HitBody:   false,
-				HitSnakes: false,
-				MoveScore: checkFuture(afterMoveBattleSnake, board, moves, 10),
-			}
-			potentialMoves = append(potentialMoves, decision[mvt])
-			if !isHealthy(afterMoveBattleSnake, board.Food) {
-
-			}
-			//if ateFood {
-			//	safeMoves = append(safeMoves, decision[mvt])
-			//} else {
-			//	safeMovesNoFood = append(safeMovesNoFood, decision[mvt])
-			//}
-			//if isHealthy(afterMoveBattleSnake, board.Food) {
-			//	if ateFood {
-			//		safeMoves = append(safeMoves, decision[mvt])
-			//	} else {
-			//		safeMovesNoFood = append(safeMovesNoFood, decision[mvt])
-			//	}
-			//} else {
-			//	// BattleSnake is about to die, but we'll keep moving!
-			//	lastChance = append(lastChance, decision[mvt])
-			//}
+	// Update Snakes in board
+	var newSnakes []BattleSnake
+	for index, player := range board.Snakes {
+		if player.Id == snake.Id {
+			newSnakes = append(newSnakes, nextBattleSnake)
+		} else {
+			newSnakes = append(newSnakes, board.Snakes[index])
 		}
 	}
 
-	//var potentialMoves []MoveMatrix
-	//if len(safeMovesNoFood) > 0 {
-	//	potentialMoves = safeMovesNoFood
-	//} else if len(safeMoves) > 0 {
-	//	potentialMoves = safeMoves
-	//} else {
-	//	potentialMoves = lastChance
+	// Update game board
+	nextBoard := Board{
+		Height:  board.Height,
+		Width:   board.Width,
+		Food:    newFood,
+		Hazards: board.Hazards,
+		Snakes:  newSnakes,
+	}
+
+	return nextBattleSnake, nextBoard
+}
+
+func nextCoords(current Coordinates, move string) Coordinates {
+	/*
+		Return new position for a given board move:
+			up, down, left, right
+	*/
+
+	var nextPosition Coordinates
+	switch move {
+	case "up":
+		nextPosition = Coordinates{
+			X: current.X,
+			Y: current.Y + 1,
+		}
+	case "down":
+		nextPosition = Coordinates{
+			X: current.X,
+			Y: current.Y - 1,
+		}
+	case "right":
+		nextPosition = Coordinates{
+			X: current.X + 1,
+			Y: current.Y,
+		}
+	case "left":
+		nextPosition = Coordinates{
+			X: current.X - 1,
+			Y: current.Y,
+		}
+	}
+
+	return nextPosition
+}
+
+func selectNextMove() NextMove {
+	/*
+		Return selected next move
+	*/
+
+	return NextMove{Move: "up", Shout: "something random"}
+}
+
+func getMoveDetails(me BattleSnake, board Board) MoveDetails {
+	/*
+		Return move details
+	*/
+
+	moveDetails := MoveDetails{
+		Healthy: false,
+		Alive:   true,
+	}
+	//if avoidBoardLimits(me.Head, Coordinates{board.Width, board.Height}) {
+	//	moveDetails.AvoidWall = true
 	//}
-	fmt.Printf("The following moves are considered safe (%v): %v\n", len(potentialMoves), potentialMoves)
+	//if avoidBattleSnakes(me.Head, board.Snakes) {
+	//	moveDetails.AvoidSnakes = true
+	//}
+	if isHealthy(me, board.Food) {
+		moveDetails.Healthy = true
+	}
+	if isDead(me, board.Snakes, Coordinates{X: board.Width, Y: board.Height}) {
+		moveDetails.Alive = false
+	}
 
-	bestScore := int32(-1)
-	var selectedMove MoveMatrix
-	for _, move := range potentialMoves {
-		fmt.Println(move.MoveName, " has a score of ", move.MoveScore)
-		if move.MoveScore > bestScore {
-			bestScore = int32(move.MoveScore)
-			selectedMove = move
+	return moveDetails
+}
+
+//func whatNext(me BattleSnake, board Board, searchDepth int) NextMove {
+//	/*
+//		Main decision making function.
+//	*/
+//
+//	moves := []string{
+//		"up",
+//		"down",
+//		"right",
+//		"left",
+//	}
+//
+//	for _, move := range moves {
+//		// Go over each move
+//		// Check avoid walls||self||snakes
+//		newHeadPosition := nextCoords(me.Head, move)
+//		ateFood := eatFood(newHeadPosition, board.Food)
+//		newMe, newBoard := nextTurn(me, newHeadPosition, ateFood, board)
+//		moveSituation := getMoveDetails(newMe, board)
+//		//moveSituation.Path = append(moveSituation.Path, move)
+//		moveSituation.Depth = searchDepth
+//		// Once here I have the current situation
+//		// Only moves that avoid walls/snakes should be considered
+//		// If I'm healthy -> go for tail chasing
+//		// If I'm healthy and tail chasing is not safe -> best scored move
+//		// If I'm not healthy -> go for food
+//
+//		if searchDepth == 0 {
+//			selectedMove := selectNextMove()
+//			fmt.Println("Next move is: ", selectedMove)
+//			return selectedMove
+//		}
+//		searchDepth -= 1
+//		return whatNext(newMe, newBoard, searchDepth)
+//	}
+//
+//	return NextMove{}
+//}
+
+func checkMoves(me BattleSnake, board Board) NextMove {
+	/*
+		If avoid walls && snakes:
+			check future moves and give score
+			populate moveDetails
+			if healthy:
+				tail chasing
+			if !healthy:
+				go for nearest food
+	*/
+
+	moves := []string{
+		"up",
+		"down",
+		"right",
+		"left",
+	}
+
+	//var safeMoves map[string][]NextMove
+	safeMoves := make(map[string][]Decision)
+
+	for _, move := range moves {
+		fmt.Println("Checking moving ", move)
+		firstHeadPosition := nextCoords(me.Head, move)
+		newMe, _ := nextTurn(me, firstHeadPosition, eatFood(firstHeadPosition, board.Food), board)
+		moveSituation := getMoveDetails(newMe, board)
+		if moveSituation.Alive {
+			if moveSituation.Healthy {
+				safeMoves["healthy"] = append(safeMoves["healthy"],
+					Decision{
+						Move:   NextMove{Move: move, Shout: "yuhu"},
+						ToTail: distanceTo(newMe.Head, newMe.Body[len(newMe.Body)-1]),
+					})
+			} else {
+				fmt.Println("First checking closest food item.")
+				safeMoves["unhealthy"] = append(safeMoves["unhealthy"],
+					Decision{
+						Move:   NextMove{Move: move, Shout: "yuhu"},
+						ToFood: distanceTo(newMe.Head, closestItem(newMe.Head, board.Food)),
+					})
+			}
+		} else {
+			fmt.Println("Move is not safe: ", move)
 		}
 	}
-	fmt.Println("BattleSnake is moving ", selectedMove.MoveName, " with a score of: ", selectedMove.MoveScore)
 
-	// Select a random move from the set of "valid" moves
-	//rand.Seed(time.Now().UnixNano())
-	if len(potentialMoves) > 0 {
-		//randMove := potentialMoves[rand.Intn(len(potentialMoves))]
-		//fmt.Printf("MOVE: %v\n", randMove.MoveName)
-		return NextMove{
-			Move:  selectedMove.MoveName,
-			Shout: "Let's go",
+	var selectedMove NextMove
+	if len(safeMoves["healthy"]) > 0 {
+		fmt.Println("Should go tail chasing")
+		closest_to_tail := int32(999)
+		for _, next := range safeMoves["healthy"] {
+			if next.ToTail < closest_to_tail {
+				closest_to_tail = next.ToTail
+				selectedMove = next.Move
+			}
+		}
+	} else if len(safeMoves["unhealthy"]) > 0 {
+		fmt.Println("Should go for food")
+		closest_to_food := int32(999)
+		for _, next := range safeMoves["unhealthy"] {
+			if next.ToFood < closest_to_food {
+				closest_to_food = next.ToFood
+				selectedMove = next.Move
+			}
 		}
 	} else {
-		fmt.Println("[CRITICAL] No moves are considered safe.")
-		return NextMove{ // If no safe moves were detected: something failed -> move up
-			Move:  "up",
-			Shout: "Failed to find a safe move: going up!",
-		}
+
+		fmt.Println("I'm dead")
+		selectedMove = NextMove{Move: "up", Shout: "failed"}
 	}
+
+	return selectedMove
 }

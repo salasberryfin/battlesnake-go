@@ -123,12 +123,7 @@ func parseJsonRequest(c *gin.Context) RequestPayload {
 // POST /move
 func moveSnake(c *gin.Context) {
 	request := parseJsonRequest(c)
-	move := avoidObstacles(request.You, request.Board)
-
-	//move := NextMove{
-	//    Move: "down",
-	//    Shout: "heeeey",
-	//}
+	move := checkMoves(request.You, request.Board)
 
 	c.IndentedJSON(http.StatusOK, move)
 }
