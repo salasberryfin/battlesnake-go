@@ -68,7 +68,7 @@ func isHealthy(me BattleSnake, food []Coordinates) bool {
 	*/
 	closest := closestItem(me.Head, food)
 
-	return me.Health > (distanceTo(me.Head, closest) + 5)
+	return me.Health > (distanceTo(me.Head, closest) + 3)
 }
 
 func isDead(me BattleSnake, battleSnakes []BattleSnake, boardSize Coordinates) bool {
@@ -276,6 +276,9 @@ func whatNext(me BattleSnake, board Board, searchDepth int32) int32 {
 		if moveSituation.Alive {
 			score += 1 * 2 * searchDepth
 		}
+		if isHealthy(newMe, board.Food) && ateFood {
+			score -= 1 * 2 * searchDepth
+		}
 
 		if searchDepth > 0 {
 			searchDepth -= 1
@@ -310,16 +313,24 @@ func checkMoves(me BattleSnake, board Board) NextMove {
 	for _, move := range moves {
 		fmt.Println("Checking moving ", move)
 		firstHeadPosition := nextCoords(me.Head, move)
-		newMe, _ := nextTurn(me, firstHeadPosition, eatFood(firstHeadPosition, board.Food), board)
+		feedSnake := eatFood(firstHeadPosition, board.Food)
+		newMe, _ := nextTurn(me, firstHeadPosition, feedSnake, board)
 		moveSituation := getMoveDetails(newMe, board)
 		if moveSituation.Alive {
-			//alive_score := whatNext(newMe, board, 5)
-			if moveSituation.Healthy {
+			//alive_score := whatNext(newMe, board, 2)
+			if moveSituation.Healthy && !feedSnake {
+				safeMoves["healthydiet"] = append(safeMoves["healthydiet"],
+					Decision{
+						Move:   NextMove{Move: move, Shout: "yuhu"},
+						ToTail: distanceTo(newMe.Head, newMe.Body[len(newMe.Body)-1]),
+						//FutureScore: int32(alive_score / (distanceTo(newMe.Head, newMe.Body[len(newMe.Body)-1]) * 2)),
+					})
+			} else if moveSituation.Healthy && feedSnake {
 				safeMoves["healthy"] = append(safeMoves["healthy"],
 					Decision{
 						Move:   NextMove{Move: move, Shout: "yuhu"},
 						ToTail: distanceTo(newMe.Head, newMe.Body[len(newMe.Body)-1]),
-						//FutureScore: int32(alive_score / (distanceTo(newMe.Head, newMe.Body[len(newMe.Body)-1]) + 1)),
+						//FutureScore: int32(alive_score / (distanceTo(newMe.Head, newMe.Body[len(newMe.Body)-1]) * 2)),
 					})
 			} else {
 				fmt.Println("First checking closest food item.")
@@ -327,7 +338,7 @@ func checkMoves(me BattleSnake, board Board) NextMove {
 					Decision{
 						Move:   NextMove{Move: move, Shout: "yuhu"},
 						ToFood: distanceTo(newMe.Head, closestItem(newMe.Head, board.Food)),
-						//FutureScore: int32(alive_score / (distanceTo(newMe.Head, closestItem(newMe.Head, board.Food)) + 1)),
+						//FutureScore: int32(alive_score / (distanceTo(newMe.Head, closestItem(newMe.Head, board.Food)) * 2)),
 					})
 			}
 		} else {
@@ -336,7 +347,16 @@ func checkMoves(me BattleSnake, board Board) NextMove {
 	}
 
 	var selectedMove NextMove
-	if len(safeMoves["healthy"]) > 0 {
+	if len(safeMoves["healthydiet"]) > 0 {
+		fmt.Println("Should go tail chasing and avoid food")
+		closest_to_tail := int32(999)
+		for _, next := range safeMoves["healthydiet"] {
+			if next.ToTail < closest_to_tail {
+				closest_to_tail = next.ToTail
+				selectedMove = next.Move
+			}
+		}
+	} else if len(safeMoves["healthy"]) > 0 {
 		fmt.Println("Should go tail chasing")
 		closest_to_tail := int32(999)
 		for _, next := range safeMoves["healthy"] {
@@ -361,13 +381,13 @@ func checkMoves(me BattleSnake, board Board) NextMove {
 				selectedMove = next.Move
 			}
 		}
-		highest_score := int32(0)
-		for _, next := range safeMoves["unhealthy"] {
-			if next.FutureScore < highest_score {
-				highest_score = next.FutureScore
-				selectedMove = next.Move
-			}
-		}
+		//highest_score := int32(0)
+		//for _, next := range safeMoves["unhealthy"] {
+		//	if next.FutureScore < highest_score {
+		//		highest_score = next.FutureScore
+		//		selectedMove = next.Move
+		//	}
+		//}
 	} else {
 		fmt.Println("I'm dead")
 		selectedMove = NextMove{Move: "up", Shout: "failed"}
