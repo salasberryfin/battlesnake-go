@@ -68,7 +68,7 @@ func isHealthy(me BattleSnake, food []Coordinates) bool {
 	*/
 	closest := closestItem(me.Head, food)
 
-	return me.Health > (distanceTo(me.Head, closest) + 30)
+	return me.Health > (distanceTo(me.Head, closest) + 5)
 }
 
 func isDead(me BattleSnake, battleSnakes []BattleSnake, boardSize Coordinates) bool {
